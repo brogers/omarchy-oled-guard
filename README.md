@@ -178,7 +178,7 @@ and leaving a veil across the top of it for a second and a half is the bug the
 suspend exists to prevent.
 
 It costs nothing to implement and grabs no input: the bar already tracks its own
-hover state, and this plugin's overlay sits on top of it with an empty input
+hover state, the indicator passes it to the service, and this plugin's overlay sits on top of it with an empty input
 region, so pointer events pass straight through to the bar underneath. No
 polling, no second hover surface, no click interception.
 
@@ -214,10 +214,11 @@ Then restart the shell so the plugin's JS library loads:
 omarchy restart shell
 ```
 
-Enabling adds an entry to `~/.config/omarchy/shell.json`. The plugin ships both
-a background service and an optional bar indicator, and reads its config from
-whichever entry exists — the `bar.layout` entry if you enabled the widget, or a
-`plugins[]` entry if you want the service without the indicator.
+Enabling adds the indicator to `bar.layout` in `~/.config/omarchy/shell.json`,
+and that entry is where the service reads its config from. Keep the indicator
+in the bar: Omarchy hands third-party services only a copy of the bar config,
+so a `plugins[]` entry is invisible to the service, and Reveal on hover needs
+the indicator to pass the bar's hover state along.
 
 ## Removing it
 
@@ -359,7 +360,8 @@ running in your shell to stay true.
 
 ## Requirements
 
-Omarchy 4.x (Quickshell-based shell). No external dependencies.
+Omarchy 4.0 with the capability-scoped plugin API (the shell hands plugins a
+scoped `shell` object rather than the host shell). No external dependencies.
 
 ## Licence
 

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "oled.guard",
   "name": "OLED Guard",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "rawritude",
   "description": "Attenuates the always-on status bar strip so it stops out-wearing the rest of your OLED panel, and clears the moment you point at it.",
   "kinds": [

@@ -1,6 +1,5 @@
 import QtQuick
 import Quickshell
-import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
@@ -17,7 +16,7 @@ Panel {
     moduleName: "oled.guard"
     ipcTarget: "oled.guard"
     // Own the target so the panel's own verbs can share it with the base
-    // open/close set -- one IpcHandler per target is the limit. Being
+    // open/close set -- one handler per target is the limit. Being
     // scriptable also means these choices can go on a keybinding.
     manageIpc: false
 
@@ -84,8 +83,6 @@ Panel {
             return "paused"
         if (!guardEnabled)
             return "off"
-        if (!service.lit)
-            return "panel not lit"
         if (service.fullscreen)
             return "standing by — fullscreen"
         if (guardActive)
@@ -161,7 +158,17 @@ Panel {
             applySettings({ baseOpacity: preset.baseOpacity, idleOpacity: preset.idleOpacity })
     }
 
-    IpcHandler {
+    // The service has no view of the pointer, so the widget lends it the
+    // bar's. centerSectionRevealHeld is the bar's own hover, held 120 ms past
+    // leaving so a pointer that dips off the edge does not flicker the veil.
+    Binding {
+        target: root.service
+        property: "barHovered"
+        value: root.bar ? !!root.bar.centerSectionRevealHeld : false
+        when: root.service !== null
+    }
+
+    ShellIpc {
         target: root.ipcTarget
 
         function open(): void { root.open() }

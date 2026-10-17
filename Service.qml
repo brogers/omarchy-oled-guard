@@ -13,20 +13,21 @@ import "GuardModel.js" as GuardModel
 // switches; the bar's clock, tray icons and workspace pills do not. Left alone
 // the strip simply ages faster than the panel around it.
 //
-// So the guard does one thing and reports on it honestly: hold a translucent
-// veil over that strip, deepen it when nobody is looking, lift it entirely
-// when there is fullscreen content underneath, and keep a running total of the
-// lit time it has actually clawed back.
+// So the guard does one thing: hold a translucent veil over that strip, deepen
+// it when nobody is looking, and lift it entirely when there is fullscreen
+// content underneath.
 Item {
     id: root
 
-    // Injected by omarchy-shell's service loader.
+    // Injected by omarchy-shell's service loader. `shell` is the scoped plugin
+    // API, not the host shell: it carries barConfig and a scalar view of the
+    // bar, and serviceFor() answers for this plugin's own id only.
     property var shell: null
     property string omarchyPath: ""
     property var manifest: null
 
     readonly property var config: GuardModel.normalize(
-        GuardModel.entryFor(shell ? shell.shellConfig : null, GuardModel.PLUGIN_ID))
+        GuardModel.entryFor(shell ? shell.barConfig : null, GuardModel.PLUGIN_ID))
 
     // Runtime pause, driven by IPC or the bar widget. Deliberately not
     // persisted: a pause is for "not right now", not for "forever" -- forever
@@ -42,32 +43,29 @@ Item {
     // trip, and a binding on it alone would not reliably re-run.
     property int hyprRevision: 0
 
-    // A lock surface covers the bar, so there is nothing worth veiling under it.
-    readonly property bool locked: {
-        try {
-            var lock = shell && typeof shell.serviceFor === "function"
-                ? shell.serviceFor("omarchy.lock") : null
-            return lock ? !!lock.locked : false
-        } catch (e) {
-            return false
-        }
-    }
-    readonly property bool lit: !locked
-
     // --------------------------------------------------------------- geometry
     //
     // Taken off the live bar rather than re-derived from hyprctl: the bar host
     // already knows its own edge and thickness, and reading it here means a
     // bar that resizes or moves drags the veil along with it for free.
-    readonly property var barConfig: shell ? shell.barConfig : null
-    readonly property string edge: GuardModel.edgeFor(barConfig)
-    readonly property int barThickness: shell && shell.bar && shell.bar.barSize > 0 ? shell.bar.barSize : 26
-    readonly property bool barHidden: shell && shell.bar ? !!shell.bar.barHidden : false
+    readonly property var barState: shell ? shell.bar : null
+    readonly property string edge: GuardModel.edgeFor(barState)
+    readonly property bool barHidden: barState ? !!barState.barHidden : false
 
-    // The bar tracks its own hover, and the overlay sits on top of it with an
-    // empty input region, so pointer events pass straight through and the bar
-    // still sees them. No polling, no input grab, no second hover surface.
-    readonly property bool barHovered: shell && shell.bar ? !!shell.bar.barHovered : false
+    // The bar's thickness on one screen. A notch floor can make a top bar
+    // thicker on one screen than the configured size.
+    function thicknessFor(screen) {
+        var size = barState && screen ? barState.barSizeFor(screen.name) : 0
+        return size > 0 ? size : 26
+    }
+
+    // Whether the pointer is on the bar. The service cannot see that -- the
+    // scoped bar state carries no hover -- so the bar widget writes it here
+    // from its own bar API. Without the widget, Reveal on hover never fires.
+    //
+    // The overlay sits on top of the bar with an empty input region, so
+    // pointer events pass straight through and the bar still sees them.
+    property bool barHovered: false
 
     // ------------------------------------------------------------ attenuation
     //
@@ -77,7 +75,6 @@ Item {
         enabled: config.enabled,
         paused: root.paused,
         barHidden: root.barHidden,
-        lit: root.lit,
         idle: root.idle,
         hovered: root.barHovered,
         revealOnHover: config.revealOnHover,
@@ -109,11 +106,9 @@ Item {
             idle: root.idle,
             hovered: root.barHovered,
             revealOnHover: config.revealOnHover,
-            lit: root.lit,
-            locked: root.locked,
             fullscreen: root.fullscreen,
             edge: root.edge,
-            thickness: root.barThickness
+            thickness: root.barState ? root.barState.barSize : 0
         }
     }
 
@@ -203,7 +198,7 @@ Item {
 
         Overlay {
             edge: root.edge
-            thickness: root.barThickness
+            thickness: root.thicknessFor(modelData)
             attenuation: root.attenuation
             checkerboard: root.config.checkerboard
             checkerContrast: root.config.checkerContrast

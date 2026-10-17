@@ -97,29 +97,23 @@ function _findInList(list, wanted) {
     return null
 }
 
-// Locate this plugin's entry in shell.json, wherever the user happened to
-// enable it from.
+// Every section a bar.layout can hold, in bar order. Mirrors Util.barSections;
+// copied rather than imported so this file stays free of qs.* modules.
+var BAR_SECTIONS = ["left", "centerBegin", "center", "centerEnd", "right", "tray"]
+
+// Locate this plugin's entry in the bar layout.
 //
-// A plugin declaring both `service` and `bar-widget` can legitimately be
-// listed in either place: `omarchy plugin enable` drops a widget into
-// bar.layout, while a service-only install goes in plugins[]. Both are the
-// same plugin and both should configure the same service, so look in both --
-// plugins[] first, since that is the explicit service registration.
-function entryFor(shellConfig, id) {
-    if (!shellConfig)
-        return null
-    var wanted = String(id || PLUGIN_ID)
-
-    var found = _findInList(shellConfig.plugins, wanted)
-    if (found)
-        return found
-
-    var layout = shellConfig.bar && shellConfig.bar.layout ? shellConfig.bar.layout : null
+// Third-party services are handed a scoped shell that exposes only a copy of
+// the bar config, not the whole of shell.json, so an entry in plugins[] is out
+// of reach. The bar.layout entry that `omarchy plugin enable` creates for the
+// widget is the one place the service can read its settings from.
+function entryFor(barConfig, id) {
+    var layout = barConfig && barConfig.layout ? barConfig.layout : null
     if (!layout)
         return null
-    var sections = ["left", "center", "right"]
-    for (var s = 0; s < sections.length; s++) {
-        found = _findInList(layout[sections[s]], wanted)
+    var wanted = String(id || PLUGIN_ID)
+    for (var s = 0; s < BAR_SECTIONS.length; s++) {
+        var found = _findInList(layout[BAR_SECTIONS[s]], wanted)
         if (found)
             return found
     }
@@ -144,8 +138,8 @@ function normalize(raw) {
     }
 }
 
-function edgeFor(barConfig) {
-    var position = barConfig && barConfig.position ? String(barConfig.position) : "top"
+function edgeFor(bar) {
+    var position = bar && bar.position ? String(bar.position) : "top"
     return EDGES.indexOf(position) === -1 ? "top" : position
 }
 
@@ -154,8 +148,8 @@ function isVerticalEdge(edge) {
 }
 
 // The single decision the overlay renders. Kept as one function so the
-// precedence between "paused", "bar is hidden", "the panel is not even lit"
-// and "user went idle" is stated once rather than smeared across bindings.
+// precedence between "paused", "bar is hidden" and "user went idle" is stated
+// once rather than smeared across bindings.
 //
 // Fullscreen is deliberately NOT handled here: it is a per-monitor fact, and
 // resolving it globally would veil a film on one screen because a different
@@ -164,10 +158,6 @@ function attenuationFor(state) {
     if (!state.enabled || state.paused)
         return 0
     if (state.barHidden)
-        return 0
-    // A lock surface covers the bar entirely, so there is nothing underneath
-    // worth veiling and no reason to keep compositing one.
-    if (!state.lit)
         return 0
     // Hover wins over idle: reaching for the bar is input, so the two cannot
     // truthfully be in conflict, and resolving it here keeps the reveal instant
